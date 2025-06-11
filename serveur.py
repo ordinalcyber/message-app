@@ -1,55 +1,37 @@
-import sqlite3
 from flask import Flask, request, jsonify
+import sqlite3
 import uuid
 from datetime import datetime
-import hashlib  # pour hasher le mot de passe simplement
 
 app = Flask(__name__)
 
-DATABASE_PATH = 'chat.db'  # même fichier pour simplifier, peut être séparé
 
+# Création de la DB simple
 def init_db():
-    with sqlite3.connect(DATABASE_PATH) as conn:
+    with sqlite3.connect('chat.db') as conn:
         c = conn.cursor()
-        # Table messages
         c.execute('''
             CREATE TABLE IF NOT EXISTS messages (
                 id TEXT PRIMARY KEY,
                 sender TEXT,
+                sender_mdp TEXT,
                 receiver TEXT,
                 message TEXT,
                 timestamp TEXT
             )
         ''')
-        # Table users
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                username TEXT PRIMARY KEY,
-                password_hash TEXT
-            )
-        ''')
         conn.commit()
 
-def hash_password(password):
-    # Hash simple avec sha256 (pour l'exemple uniquement, pas recommandé en prod)
-    return hashlib.sha256(password.encode()).hexdigest()
-
-def check_auth(username, password):
-    with sqlite3.connect(DATABASE_PATH) as conn:
-        c = conn.cursor()
-        c.execute('SELECT password_hash FROM users WHERE username = ?', (username,))
-        row = c.fetchone()
-        if row is None:
-            return False
-        stored_hash = row[0]
-        return stored_hash == hash_password(password)
 
 @app.route('/send_message', methods=['POST'])
 def send_message():
     data = request.json
     username = data.get('username')
     password = data.get('password')
-    is_identified = data.get('is_identified', False)  # Par défaut False
+    if data.get('is_identified') == "false":
+        is_identified = False
+    else:
+        is_identified = True
     sender = data.get('sender')
     receiver = data.get('receiver')
     message = data.get('message')
@@ -96,6 +78,7 @@ def send_message():
     action = "Compte créé et message envoyé" if not is_identified else "Message envoyé"
 
     return jsonify({'status': action, 'id': msg_id})
+
 @app.route('/get_messages/<user>', methods=['GET'])
 def get_messages(user):
     with sqlite3.connect('chat.db') as conn:
@@ -106,15 +89,7 @@ def get_messages(user):
     messages = [{'sender': s, 'message': m, 'timestamp': t} for s, m, t in msgs]
     return jsonify({'messages': messages})
 
+
 if __name__ == '__main__':
     init_db()
-
-    # Pour l'exemple, on insère un utilisateur au démarrage s'il n'existe pas
-    with sqlite3.connect(DATABASE_PATH) as conn:
-        c = conn.cursor()
-        c.execute('SELECT * FROM users WHERE username = ?', ('alice',))
-        if c.fetchone() is None:
-            c.execute('INSERT INTO users VALUES (?, ?)', ('alice', hash_password('password123')))
-            conn.commit()
-
     app.run(host='0.0.0.0', port=5000)
