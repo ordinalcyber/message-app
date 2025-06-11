@@ -96,6 +96,15 @@ def send_message():
     action = "Compte créé et message envoyé" if not is_identified else "Message envoyé"
 
     return jsonify({'status': action, 'id': msg_id})
+@app.route('/get_messages/<user>', methods=['GET'])
+def get_messages(user):
+    with sqlite3.connect('chat.db') as conn:
+        c = conn.cursor()
+        c.execute('SELECT sender, message, timestamp FROM messages WHERE receiver = ?', (user,))
+        msgs = c.fetchall()
+
+    messages = [{'sender': s, 'message': m, 'timestamp': t} for s, m, t in msgs]
+    return jsonify({'messages': messages})
 
 if __name__ == '__main__':
     init_db()
